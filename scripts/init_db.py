@@ -76,81 +76,98 @@ def seed_members_from_dianming(xlsx_path):
     return added
 
 
-def seed_from_year_summary(xlsx_path, sheet_name="全年總表"):
-    """Seed members AND attendance from the year summary sheet."""
-    import openpyxl
-    wb = openpyxl.load_workbook(xlsx_path, data_only=True)
-    if sheet_name not in wb.sheetnames:
-        print(f"⚠ Sheet '{sheet_name}' not found")
-        return
-    ws = wb[sheet_name]
+# Sheets that contain a yearly attendance grid (member_no | name | note | ... | dates)
+# Format observed in source workbook: 53/54 sheets sharing a near-identical layout.
+YEAR_SHEETS = [
+    "2017記錄",
+    "2018記錄",
+    "2019記錄",
+    "2020記錄",
+    "2021記錄",
+    "2022記錄",
+    "「全年總表2025」",
+    "全年總表",  # current year (2026)
+]
 
-    rows = list(ws.iter_rows(values_only=True))
-    if len(rows) < 8:
-        print("⚠ Sheet too short")
-        return
 
-    header = rows[0]
-    # Date columns start at index 5 (column F)
+def _import_year_sheet(ws, expected_year=None):
+    """Import a single year sheet. Returns (new_members, new_attendance)."""
+    # 1. Find the header row containing 編號 / 姓名 (usually row 7)
+    header_row = None
+    for r in range(1, 15):
+        if ws.cell(r, 1).value == "編號" and ws.cell(r, 2).value == "姓名":
+            header_row = r
+            break
+    if not header_row:
+        print(f"  ⚠ Could not find header row in '{ws.title}'")
+        return 0, 0
+
+    # 2. Date columns: scan row 1 for datetime cells. Filter to expected year if given.
     dates = []
-    for i in range(5, len(header)):
-        v = header[i]
+    for c in range(1, ws.max_column + 1):
+        v = ws.cell(1, c).value
         if isinstance(v, datetime):
-            dates.append((i, v.date()))
-    print(f"Found {len(dates)} date columns")
+            d = v.date()
+            if expected_year and d.year != expected_year:
+                # Skip stray cells (e.g. year-end overlap into next year is OK)
+                # Only allow exact-match year, plus first week of next year
+                if not (d.year == expected_year + 1 and d.month == 1 and d.day <= 7):
+                    continue
+            dates.append((c, d))
+    if not dates:
+        print(f"  ⚠ No date columns in '{ws.title}'")
+        return 0, 0
 
-    # Member rows start at row 8 (index 7)
-    added_m = 0
-    added_a = 0
-    for r in rows[7:]:
-        if not r or len(r) < 3:
+    new_m = 0
+    new_a = 0
+    for r in range(header_row + 1, ws.max_row + 1):
+        rid_raw = ws.cell(r, 1).value
+        name = ws.cell(r, 2).value
+        note = ws.cell(r, 3).value
+
+        if rid_raw is None or not isinstance(name, str) or not name.strip():
             continue
-        rid_raw = r[0]
-        name = r[1]
-        note = r[2]
-        if rid_raw is None or name is False or name is None or not isinstance(name, str):
-            continue
+
+        # Normalize member_no: prefer 3-digit zero-pad if it's an integer
         if isinstance(rid_raw, float):
             rid = str(int(rid_raw)).zfill(3)
+        elif isinstance(rid_raw, int):
+            rid = str(rid_raw).zfill(3)
         else:
             rid = str(rid_raw).strip()
             if rid.isdigit():
                 rid = rid.zfill(3)
+
         name = name.strip()
         note_str = note.strip() if isinstance(note, str) else None
 
         m = Member.query.filter_by(member_no=rid).first()
         if not m:
-            # Detect child from name list (we'll mark from manual file later)
-            is_child = (note_str and "兒童" in note_str)
+            is_child = bool(note_str and "兒童" in note_str)
             m = Member(
                 member_no=rid, name=name, note=note_str,
                 is_child=is_child, is_active=True,
             )
             db.session.add(m)
             db.session.flush()
-            added_m += 1
+            new_m += 1
         else:
-            # Update note if missing
             if not m.note and note_str:
                 m.note = note_str
 
-        # Attendance values: 1=adult on-time, 2=adult late, 3=child on-time, 4=child late
         for col_idx, sd in dates:
-            if col_idx >= len(r):
-                continue
-            val = r[col_idx]
-            if val in (None, "", 0):
+            val = ws.cell(r, col_idx).value
+            if val in (None, "", 0, 0.0):
                 continue
             try:
-                v = int(val)
+                v = int(float(val))
             except (ValueError, TypeError):
+                continue
+            if v not in (1, 2, 3, 4):
                 continue
             if v in (3, 4):
                 m.is_child = True
-            status = "on_time" if v in (1, 3) else "late" if v in (2, 4) else None
-            if not status:
-                continue
+            status = "on_time" if v in (1, 3) else "late"
             existing = Attendance.query.filter_by(member_id=m.id, service_date=sd).first()
             if existing:
                 continue
@@ -159,9 +176,51 @@ def seed_from_year_summary(xlsx_path, sheet_name="全年總表"):
                 check_in_time=datetime.combine(sd, datetime.min.time()),
                 method="import",
             ))
-            added_a += 1
+            new_a += 1
     db.session.commit()
-    print(f"✓ Imported {added_m} new members, {added_a} attendance records from {xlsx_path}")
+    return new_m, new_a
+
+
+def seed_from_year_summary(xlsx_path, sheet_name=None):
+    """Seed members AND attendance from ALL year sheets in the workbook.
+
+    If sheet_name is given, only that sheet is imported (legacy behavior).
+    Otherwise, every known year sheet is imported in chronological order.
+    """
+    import openpyxl
+    wb = openpyxl.load_workbook(xlsx_path, data_only=True)
+
+    if sheet_name:
+        targets = [sheet_name] if sheet_name in wb.sheetnames else []
+    else:
+        targets = [s for s in YEAR_SHEETS if s in wb.sheetnames]
+
+    if not targets:
+        print(f"⚠ No year sheets found in {xlsx_path}")
+        return
+
+    print(f"Importing {len(targets)} year sheet(s) from {xlsx_path}")
+    total_m = 0
+    total_a = 0
+    for sn in targets:
+        ws = wb[sn]
+        # Extract expected year from sheet name (digits like 2017, 2018, 2025)
+        import re
+        m_year = re.search(r"(20\d{2})", sn)
+        expected_year = int(m_year.group(1)) if m_year else None
+        if sn == "全年總表":
+            # Current year — derive from first date cell
+            for c in range(1, ws.max_column + 1):
+                v = ws.cell(1, c).value
+                if isinstance(v, datetime):
+                    expected_year = v.date().year
+                    break
+        new_m, new_a = _import_year_sheet(ws, expected_year)
+        print(f"  ✓ {sn} (year={expected_year}): +{new_m} members, +{new_a} attendance")
+        total_m += new_m
+        total_a += new_a
+
+    print(f"✓ Imported {total_m} new members, {total_a} attendance records from {xlsx_path}")
 
 
 def merge_dianming_metadata(xlsx_path):
