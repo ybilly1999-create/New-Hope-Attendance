@@ -3,8 +3,9 @@ services:
     name: church-attendance
     runtime: python
     plan: free
-    buildCommand: pip install -r requirements.txt
-    startCommand: python scripts/init_db.py --seed-history data/history.xlsx --seed-members data/members.xlsx && gunicorn wsgi:app
+    pythonVersion: "3.11.9"
+    buildCommand: "pip install -r requirements.txt && python scripts/init_db.py --seed-history data/history.xlsx --seed-members data/members.xlsx"
+    startCommand: "gunicorn --bind 0.0.0.0:$PORT wsgi:app"
     envVars:
       - key: ADMIN_PASSWORD
         sync: false
@@ -13,4 +14,4 @@ services:
       - key: SERVICE_START_TIME
         value: "10:00"
       - key: PYTHON_VERSION
-        value: 3.11.9
+        value: "3.11.9"
