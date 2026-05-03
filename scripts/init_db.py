@@ -15,7 +15,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app import create_app
-from app.models import db, Member, Attendance, Setting, SpecialDate
+from app.models import db, Member, Attendance, Setting, SpecialDate, Visitor
 
 
 def seed_members_from_dianming(xlsx_path):
@@ -224,79 +224,148 @@ def seed_from_year_summary(xlsx_path, sheet_name=None):
     print(f"✓ Imported {total_m} new members, {total_a} attendance records from {xlsx_path}")
 
 
-def seed_special_dates(xlsx_path):
-    """Detect special-date labels written as vertical Chinese characters in date columns.
+def _is_label_char(v):
+    """Single character that could be part of a special-date label."""
+    if not isinstance(v, str):
+        return False
+    s = v.strip()
+    if len(s) != 1:
+        return False
+    if s.isdigit():
+        return False
+    if s in "-=":
+        return False
+    if 'A' <= s <= 'Z' or 'a' <= s <= 'z':
+        return True
+    return '\u4e00' <= s <= '\u9fff'
 
-    The original spreadsheet uses single-character cells stacked vertically inside the
-    member data area to label special services (e.g. 會慶, BB立願禮, 夏令會, 網上聯堂崇拜).
-    We collect those characters per date column and store them as SpecialDate rows.
-    Admins can edit/delete them later in the dashboard.
+
+def _is_short_label(v):
+    """Multi-char label already inside one cell (e.g. 會慶, 打風)."""
+    if not isinstance(v, str):
+        return False
+    s = v.strip()
+    if not s or s.replace(".", "").isdigit():
+        return False
+    if s in ("-", "="):
+        return False
+    if 2 <= len(s) <= 8:
+        return any('\u4e00' <= ch <= '\u9fff' for ch in s)
+    return False
+
+
+def seed_special_dates(xlsx_path):
+    """Detect special-service labels in year sheets (e.g. 會慶, BB立願禮, 夏令會,
+    網上聯堂崇拜, 戶外崇拜, 打風暫停).
+
+    Layout 1 — vertical: characters are stacked one-per-row inside a single date column,
+    e.g. col 8 of the 2025 sheet has 基/督/少/年/軍/立 in rows 8-13.
+
+    Layout 2 — horizontal-stacked: in covid years (2020-2022) one character per row
+    spans across many date columns, with empty/data rows between, e.g. row 14 has
+    網/網/網/... across columns, row 17 has 上/上/..., row 19 has 聯/聯/...
+
+    Both reduce to: per date column, gather label chars from member rows, then group
+    runs of chars that are vertically close (gap up to 10 rows) into one event label.
     """
+    from collections import defaultdict
     import openpyxl
+
     wb = openpyxl.load_workbook(xlsx_path, data_only=True)
     targets = [s for s in YEAR_SHEETS if s in wb.sheetnames]
     if not targets:
         return
 
-    found = {}  # date -> label string
+    date_labels: dict = defaultdict(set)
+
     for sn in targets:
         ws = wb[sn]
-        # Find header row
         header_row = None
-        for r in range(1, 15):
+        for r in range(1, 20):
             if ws.cell(r, 1).value == "編號":
                 header_row = r
                 break
         if not header_row:
             continue
-
-        # For each datetime column header, scan member rows for non-numeric short text
+        date_cols = []
         for c in range(1, ws.max_column + 1):
             v = ws.cell(1, c).value
-            if not isinstance(v, datetime):
-                continue
-            d = v.date()
-            chars = []
-            for r in range(header_row + 1, ws.max_row + 1):
-                cv = ws.cell(r, c).value
-                if isinstance(cv, str):
-                    s = cv.strip()
-                    if not s:
-                        continue
-                    # Skip pure numbers and known status text
-                    if s.replace(".", "").isdigit():
-                        continue
-                    if s in ("-",):
-                        continue
-                    if len(s) <= 6:
-                        chars.append(s)
-            if chars:
-                label = "".join(chars).strip()
-                # Deduplicate immediate repeats (e.g. "聯堂聯堂崇拜" -> just keep)
-                if d in found:
-                    found[d] = found[d] + " " + label
-                else:
-                    found[d] = label
+            if isinstance(v, datetime):
+                date_cols.append((c, v.date()))
+        if not date_cols:
+            continue
+        member_rows = list(range(header_row + 1, ws.max_row + 1))
 
+        for c, d in date_cols:
+            chars_at = []
+            for r in member_rows:
+                v = ws.cell(r, c).value
+                if _is_label_char(v):
+                    chars_at.append((r, v.strip()))
+            if chars_at:
+                # Group into runs (gap <= 10 rows separates two events)
+                groups = [[chars_at[0]]]
+                for r, ch in chars_at[1:]:
+                    if r - groups[-1][-1][0] <= 10:
+                        groups[-1].append((r, ch))
+                    else:
+                        groups.append([(r, ch)])
+                for g in groups:
+                    chars = [ch for _, ch in g]
+                    # Need at least 2 chars and not all the same letter
+                    if len(chars) >= 2 and len(set(chars)) > 1:
+                        date_labels[d].add("".join(chars))
+
+            # Also pick up multi-char short labels stored in a single cell
+            for r in member_rows:
+                v = ws.cell(r, c).value
+                if _is_short_label(v):
+                    date_labels[d].add(v.strip())
+
+    # For each date, drop labels that are substrings of longer ones, and join
+    # remaining distinct labels with ' / ' so admin can see all detected events.
     added = 0
-    for d, label in sorted(found.items()):
+    for d in sorted(date_labels.keys()):
+        labels = list(date_labels[d])
+        # Drop pure-repeat strings (e.g. "網網網網")
+        labels = [l for l in labels if len(set(l)) > 1]
+        # Drop substrings
+        kept = [l for l in labels if not any(l != l2 and l in l2 for l2 in labels)]
+        if not kept:
+            continue
+        kept.sort(key=lambda s: (-len(s), s))
+        label = " / ".join(kept)
         existing = SpecialDate.query.filter_by(service_date=d).first()
         if existing:
+            # Update if our detection is longer/more informative
+            if not existing.label or len(label) > len(existing.label):
+                existing.label = label
             continue
         db.session.add(SpecialDate(service_date=d, label=label))
         added += 1
     db.session.commit()
-    print(f"✓ Imported {added} special-date labels (e.g. 會慶, 網上聯堂崇拜, 夏令會)")
+    print(f"✓ Imported/updated special-date labels for {len(date_labels)} dates ({added} new)")
 
 
 def merge_dianming_metadata(xlsx_path):
-    """Apply english_name and 兒童 flag from 點名用 sheet to existing members."""
+    """Apply english_name / 兒童 flag / remarks from 點名用 sheet to existing members.
+
+    The 點名用 sheet's third sub-column was named "Eng Name" but admins use it as a
+    free-form remark column too. Common patterns we now route into note instead:
+      - '兒童'          → set is_child=True; note='兒童'
+      - '牧師' / '傳道'  → note holds the role
+      - '六太' / '六先' / 'X太' / 'Max\u2019s 媽' / etc. → note holds the relationship
+      - 'Fanny丈夫'      → note holds the relationship; english_name extracts the latin part
+      - Pure latin names (Money, Raymond) → stored as english_name
+    """
     import openpyxl
+    import re
     wb = openpyxl.load_workbook(xlsx_path, data_only=True)
     if "點名用" not in wb.sheetnames:
         return
     ws = wb["點名用"]
     updated = 0
+    moved_to_note = 0
     for row in ws.iter_rows(values_only=True):
         for offset in [0, 4, 8, 12]:
             if offset + 2 >= len(row):
@@ -312,18 +381,129 @@ def merge_dianming_metadata(xlsx_path):
             if not m:
                 continue
             eng_str = eng.strip() if isinstance(eng, str) else None
+            if not eng_str:
+                continue
+            # Skip if member is already deceased — we don't overwrite.
+            if m.note and ("離世" in m.note or "安息" in m.note):
+                continue
             changed = False
+            has_chinese = any('\u4e00' <= ch <= '\u9fff' for ch in eng_str)
             if eng_str == "兒童":
                 if not m.is_child:
                     m.is_child = True
                     changed = True
-            elif eng_str and not m.english_name:
-                m.english_name = eng_str
+                if (m.note or "") != "兒童":
+                    m.note = "兒童"
+                    changed = True
+                if m.english_name == "兒童":
+                    m.english_name = None
+                    changed = True
+            elif has_chinese:
+                # The string is a remark. Try to split into a latin chunk + chinese remark.
+                latin_match = re.findall(r"[A-Za-z][A-Za-z'’.\-]*", eng_str)
+                latin_part = " ".join(latin_match).strip() if latin_match else None
+                # Drop common short connectors so we keep meaningful names only
+                if latin_part and latin_part.lower() in ("s", "of"):
+                    latin_part = None
+                # Whatever remains (Chinese + punctuation) becomes the note
+                remark = eng_str
+                m.note = remark
+                m.english_name = latin_part
                 changed = True
+                moved_to_note += 1
+            else:
+                # Pure latin / numeric — it's an English name, not a remark
+                if not m.english_name:
+                    m.english_name = eng_str
+                    changed = True
+                # If the note column was just a duplicate of the English name (a
+                # quirk left over from importing the year sheets' 3rd column),
+                # clear it so the member list shows a clean note column.
+                if m.note and m.note.strip() == eng_str:
+                    m.note = None
+                    changed = True
             if changed:
                 updated += 1
     db.session.commit()
-    print(f"✓ Updated metadata for {updated} members")
+    print(f"✓ Updated metadata for {updated} members ({moved_to_note} Chinese remarks moved to note)")
+
+
+# Member numbers (zero-padded 3-digit) of members who passed away —
+# detected from the 備註 column in 2017記錄 / 2018記錄 sheets where it reads '離世' or '安息'.
+DECEASED_MEMBERS = {
+    "031": "離世",
+    "079": "離世",
+    "111": "離世",
+    "129": "離世",
+    "135": "離世",
+    "161": "安息",
+    "176": "離世",
+    "179": "離世",
+    "191": "離世",
+    "192": "離世",
+    "194": "離世",
+    "195": "離世",
+    "223": "離世",
+    "225": "離世",
+    "226": "離世",
+}
+
+
+def mark_deceased_members():
+    """Set is_active=False and note='離世'/'安息' for members listed in DECEASED_MEMBERS."""
+    updated = 0
+    for mno, reason in DECEASED_MEMBERS.items():
+        m = Member.query.filter_by(member_no=mno).first()
+        if not m:
+            continue
+        if m.is_active or (m.note or "") != reason:
+            m.is_active = False
+            m.note = reason
+            updated += 1
+    db.session.commit()
+    print(f"✓ Marked {updated} deceased members as inactive")
+
+
+def seed_visitors_from_xinpengyou(xlsx_path):
+    """Import 2026 visitor records from the 新朋友 sheet (cols A-Q).
+
+    Layout: row 1 has the service date in each column; rows 2..N below contain
+    one visitor name per cell. We walk each column and create a Visitor row
+    for every non-empty cell.
+    """
+    import openpyxl
+    wb = openpyxl.load_workbook(xlsx_path, data_only=True)
+    if "新朋友" not in wb.sheetnames:
+        return
+    ws = wb["新朋友"]
+    added = 0
+    # Cols A-Q = 1..17 inclusive (the 2026 block per user's note)
+    for c in range(1, 18):
+        v = ws.cell(1, c).value
+        if not isinstance(v, datetime):
+            continue
+        d = v.date()
+        if d.year != 2026:
+            continue
+        for r in range(2, 25):  # row 25 contains totals; ignore footer
+            cell = ws.cell(r, c).value
+            if not isinstance(cell, str):
+                continue
+            name = cell.strip()
+            if not name:
+                continue
+            # Skip rows that hold totals or numbers
+            if name.replace(".", "").isdigit():
+                continue
+            existing = (
+                Visitor.query.filter_by(service_date=d, name=name).first()
+            )
+            if existing:
+                continue
+            db.session.add(Visitor(service_date=d, name=name))
+            added += 1
+    db.session.commit()
+    print(f"✓ Imported {added} 2026 visitor records from 新朋友 sheet")
 
 
 def main():
@@ -355,7 +535,17 @@ def main():
             seed_members_from_dianming(args.seed_members)
             merge_dianming_metadata(args.seed_members)
 
-        print(f"Final members: {Member.query.count()}, attendance: {Attendance.query.count()}")
+        # Always run cleanup steps (idempotent)
+        mark_deceased_members()
+        if args.seed_history and Path(args.seed_history).exists():
+            seed_visitors_from_xinpengyou(args.seed_history)
+
+        print(
+            f"Final members: {Member.query.count()}, "
+            f"attendance: {Attendance.query.count()}, "
+            f"visitors: {Visitor.query.count()}, "
+            f"special dates: {SpecialDate.query.count()}"
+        )
 
 
 if __name__ == "__main__":
