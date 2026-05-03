@@ -1,0 +1,57 @@
+{% extends "admin/_layout.html" %}
+{% block title %}{% if member %}編輯會員{% else %}新增會員{% endif %}{% endblock %}
+
+{% block admin_content %}
+<h1 class="text-2xl font-bold text-gray-900 mb-5">
+  {% if member %}編輯會員 - {{ member.name }}{% else %}新增會員{% endif %}
+</h1>
+
+<form method="post" class="card max-w-xl space-y-4">
+  <div class="grid grid-cols-2 gap-4">
+    <div>
+      <label class="label">編號 *</label>
+      <input type="text" name="member_no" class="input" required
+             value="{{ member.member_no if member else suggest }}" placeholder="例：007">
+    </div>
+    <div>
+      <label class="label">姓名（中文）*</label>
+      <input type="text" name="name" class="input" required
+             value="{{ member.name if member else '' }}">
+    </div>
+  </div>
+
+  <div>
+    <label class="label">英文名（選填）</label>
+    <input type="text" name="english_name" class="input"
+           value="{{ member.english_name or '' if member else '' }}">
+  </div>
+
+  <div>
+    <label class="label">備註（選填）</label>
+    <input type="text" name="note" class="input"
+           value="{{ member.note or '' if member else '' }}" placeholder="例：謝師母、堅叔、家屬">
+  </div>
+
+  <div class="flex flex-wrap gap-4 pt-2">
+    <label class="flex items-center gap-2 text-sm cursor-pointer">
+      <input type="checkbox" name="is_child" value="1" class="w-4 h-4"
+             {% if member and member.is_child %}checked{% endif %}>
+      <span>兒童（在統計表會分開計算）</span>
+    </label>
+    {% if member %}
+    <label class="flex items-center gap-2 text-sm cursor-pointer">
+      <input type="checkbox" name="is_active" value="1" class="w-4 h-4"
+             {% if member.is_active %}checked{% endif %}>
+      <span>啟用（顯示在簽到列表）</span>
+    </label>
+    {% else %}
+    <input type="hidden" name="is_active" value="1">
+    {% endif %}
+  </div>
+
+  <div class="pt-4 flex gap-2">
+    <button type="submit" class="btn-primary">儲存</button>
+    <a href="{{ url_for('admin.members_list') }}" class="btn-secondary">取消</a>
+  </div>
+</form>
+{% endblock %}

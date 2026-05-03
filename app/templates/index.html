@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}簽到 - {{ CHURCH_NAME }}{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+  <div class="card">
+    <div class="text-center mb-6">
+      <div class="text-sm text-gray-500 mb-1">主日崇拜</div>
+      <div class="text-2xl font-bold text-brand-800">{{ target_date.strftime('%Y年%m月%d日') }}</div>
+      <div class="text-sm text-gray-500 mt-1">
+        準時截止時間：{{ SERVICE_START_TIME }}
+      </div>
+    </div>
+
+    <form method="post" action="{{ url_for('main.checkin') }}" id="checkin-form">
+      <input type="hidden" name="service_date" value="{{ target_date.isoformat() }}">
+      <input type="hidden" name="member_id" id="member_id" value="">
+      <input type="hidden" name="method" value="self">
+
+      <label class="label" for="search">搜尋姓名或編號</label>
+      <input type="text" id="search" class="input mb-3" placeholder="例如：周淑芳 / 007 / Mary" autocomplete="off">
+
+      <div id="member-list" class="max-h-72 overflow-y-auto border border-gray-200 rounded-lg divide-y divide-gray-100">
+        {% for m in members %}
+          <button type="button"
+                  data-id="{{ m.id }}"
+                  data-name="{{ m.name }}"
+                  data-no="{{ m.member_no }}"
+                  data-eng="{{ m.english_name or '' }}"
+                  class="member-item w-full text-left px-4 py-3 hover:bg-brand-50 transition flex items-center justify-between">
+            <div>
+              <div class="font-medium text-gray-900">{{ m.name }}{% if m.english_name %} <span class="text-sm text-gray-500">({{ m.english_name }})</span>{% endif %}</div>
+              <div class="text-xs text-gray-500">編號 {{ m.member_no }}{% if m.note %} · {{ m.note }}{% endif %}</div>
+            </div>
+            {% if m.is_child %}<span class="badge-child">兒童</span>{% endif %}
+          </button>
+        {% endfor %}
+      </div>
+
+      <div id="selected-info" class="mt-4 p-4 bg-brand-50 rounded-lg hidden">
+        <div class="text-sm text-gray-600">已選擇</div>
+        <div id="selected-name" class="text-xl font-bold text-brand-800"></div>
+      </div>
+
+      <button type="submit" id="submit-btn" class="btn-primary w-full mt-5 text-lg" disabled>
+        確認簽到
+      </button>
+    </form>
+
+    <div class="mt-5 grid grid-cols-2 gap-2">
+      <a href="{{ url_for('main.visitor') }}" class="btn-secondary text-sm">新朋友登記</a>
+      <a href="#recent" class="btn-secondary text-sm">最近簽到</a>
+    </div>
+  </div>
+
+  {% if recent %}
+  <div class="card mt-6" id="recent">
+    <h3 class="font-semibold text-gray-700 mb-3">本日已簽到（{{ recent|length }}人，最新 20 條）</h3>
+    <ul class="text-sm divide-y divide-gray-100">
+      {% for r in recent %}
+      <li class="py-2 flex items-center justify-between">
+        <span>{{ r.member.name }} <span class="text-gray-400 text-xs">{{ r.member.member_no }}</span></span>
+        <span class="flex items-center gap-2">
+          {% if r.status == 'on_time' %}<span class="badge-on">準時</span>
+          {% else %}<span class="badge-late">遲到</span>{% endif %}
+          <span class="text-xs text-gray-400">{{ r.check_in_time.strftime('%H:%M') }}</span>
+        </span>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const search = document.getElementById('search');
+  const items = document.querySelectorAll('.member-item');
+  const memberIdInput = document.getElementById('member_id');
+  const submitBtn = document.getElementById('submit-btn');
+  const selectedInfo = document.getElementById('selected-info');
+  const selectedName = document.getElementById('selected-name');
+
+  search.addEventListener('input', () => {
+    const q = search.value.trim().toLowerCase();
+    items.forEach(it => {
+      const text = (it.dataset.name + ' ' + it.dataset.no + ' ' + it.dataset.eng).toLowerCase();
+      it.style.display = !q || text.includes(q) ? '' : 'none';
+    });
+  });
+
+  items.forEach(it => {
+    it.addEventListener('click', () => {
+      items.forEach(x => x.classList.remove('bg-brand-100', 'ring-2', 'ring-brand-500'));
+      it.classList.add('bg-brand-100', 'ring-2', 'ring-brand-500');
+      memberIdInput.value = it.dataset.id;
+      selectedName.textContent = it.dataset.no + ' ' + it.dataset.name;
+      selectedInfo.classList.remove('hidden');
+      submitBtn.disabled = false;
+    });
+  });
+
+  // Prevent double-submit
+  document.getElementById('checkin-form').addEventListener('submit', () => {
+    submitBtn.disabled = true;
+    submitBtn.textContent = '處理中...';
+  });
+</script>
+{% endblock %}

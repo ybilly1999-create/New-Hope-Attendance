@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: church-attendance
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt && python scripts/init_db.py --seed-history data/history.xlsx --seed-members data/members.xlsx
+    startCommand: gunicorn wsgi:app
+    envVars:
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: SECRET_KEY
+        generateValue: true
+      - key: SERVICE_START_TIME
+        value: "10:00"
+      - key: PYTHON_VERSION
+        value: 3.11.9
+    disk:
+      name: data
+      mountPath: /opt/render/project/src/instance
+      sizeGB: 1

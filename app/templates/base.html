@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0f4c75" />
+  <title>{% block title %}{{ CHURCH_NAME }} 出席系統{% endblock %}</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%230f4c75'/%3E%3Cpath d='M28 14h8v14h14v8H36v18h-8V36H14v-8h14z' fill='white'/%3E%3C/svg%3E" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#eff6fb',
+              100: '#d6e7f1',
+              200: '#aed0e3',
+              300: '#7eb1cf',
+              500: '#3282b8',
+              600: '#256a99',
+              700: '#1b4f73',
+              800: '#0f4c75',
+              900: '#0a3a5c',
+            }
+          },
+          fontFamily: {
+            sans: ['"Noto Sans TC"', 'system-ui', '-apple-system', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Noto Sans TC', system-ui, sans-serif; }
+    /* Component styles using plain CSS (Tailwind CDN @apply is unreliable) */
+    .btn-primary {
+      display: inline-flex; align-items: center; justify-content: center;
+      padding: 0.75rem 1.25rem; border-radius: 0.5rem;
+      background-color: #0f4c75; color: white; font-weight: 500;
+      box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05);
+      transition: background-color .15s, transform .1s; cursor: pointer; border: none;
+    }
+    .btn-primary:hover { background-color: #0a3a5c; }
+    .btn-primary:active { transform: scale(0.97); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .btn-secondary {
+      display: inline-flex; align-items: center; justify-content: center;
+      padding: 0.5rem 1rem; border-radius: 0.5rem;
+      background-color: white; border: 1px solid #d1d5db;
+      color: #374151; font-weight: 500; transition: background-color .15s; cursor: pointer;
+    }
+    .btn-secondary:hover { background-color: #f9fafb; }
+
+    .btn-danger {
+      display: inline-flex; align-items: center; justify-content: center;
+      padding: 0.375rem 0.75rem; border-radius: 0.375rem;
+      background-color: #dc2626; color: white; font-size: 0.875rem; font-weight: 500;
+      cursor: pointer; border: none; transition: background-color .15s;
+    }
+    .btn-danger:hover { background-color: #b91c1c; }
+
+    .btn-ghost {
+      display: inline-flex; align-items: center; justify-content: center;
+      padding: 0.375rem 0.75rem; border-radius: 0.375rem;
+      color: #374151; font-size: 0.875rem; transition: background-color .15s;
+      cursor: pointer; border: none; background: transparent;
+    }
+    .btn-ghost:hover { background-color: #f3f4f6; }
+
+    .input {
+      width: 100%; padding: 0.75rem 1rem; border-radius: 0.5rem;
+      border: 1px solid #d1d5db; outline: none; transition: border-color .15s, box-shadow .15s;
+      font-size: 1rem; background-color: white;
+    }
+    .input:focus { border-color: #3282b8; box-shadow: 0 0 0 2px rgba(50,130,184,0.3); }
+    .input.\!py-2 { padding-top: 0.5rem !important; padding-bottom: 0.5rem !important; }
+
+    .label {
+      display: block; font-size: 0.875rem; font-weight: 500;
+      color: #374151; margin-bottom: 0.375rem;
+    }
+
+    .card {
+      background-color: white; border-radius: 0.75rem;
+      box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05); border: 1px solid #e5e7eb;
+      padding: 1.5rem;
+    }
+    .card.\!p-0 { padding: 0 !important; }
+    .card.\!p-3 { padding: 0.75rem !important; }
+    .card.\!p-4 { padding: 1rem !important; }
+
+    .badge-on { display: inline-flex; align-items: center; padding: 0.125rem 0.5rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 500; background-color: #d1fae5; color: #065f46; }
+    .badge-late { display: inline-flex; align-items: center; padding: 0.125rem 0.5rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 500; background-color: #fef3c7; color: #92400e; }
+    .badge-child { display: inline-flex; align-items: center; padding: 0.125rem 0.5rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 500; background-color: #f3e8ff; color: #6b21a8; }
+
+    code { background-color: #f3f4f6; padding: 0.125rem 0.375rem; border-radius: 0.25rem; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 0.875em; }
+
+    @media print {
+      .print\:hidden { display: none !important; }
+      .print\:break-inside-avoid { break-inside: avoid; }
+      .print\:grid-cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    }
+  </style>
+  {% block head %}{% endblock %}
+</head>
+<body class="bg-gray-50 min-h-screen flex flex-col">
+  <header class="bg-brand-800 text-white shadow-md">
+    <div class="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
+      <a href="{{ url_for('main.index') }}" class="flex items-center gap-3 hover:opacity-90">
+        <div class="w-10 h-10 bg-white/15 rounded-lg flex items-center justify-center text-xl font-bold">✝</div>
+        <div>
+          <div class="text-base sm:text-lg font-bold leading-tight">{{ CHURCH_NAME }}</div>
+          <div class="text-xs text-brand-100 leading-tight">崇拜出席記錄系統</div>
+        </div>
+      </a>
+      <nav class="flex items-center gap-1 text-sm">
+        {% if session.get('admin') %}
+          <a href="{{ url_for('admin.dashboard') }}" class="hidden sm:inline-block px-3 py-1.5 rounded hover:bg-brand-700">管理</a>
+          <a href="{{ url_for('admin.logout') }}" class="px-3 py-1.5 rounded hover:bg-brand-700">登出</a>
+        {% else %}
+          <a href="{{ url_for('main.visitor') }}" class="hidden sm:inline-block px-3 py-1.5 rounded hover:bg-brand-700">新朋友</a>
+          <a href="{{ url_for('admin.login') }}" class="px-3 py-1.5 rounded hover:bg-brand-700">管理員</a>
+        {% endif %}
+      </nav>
+    </div>
+  </header>
+
+  <main class="flex-1 max-w-5xl mx-auto w-full px-4 py-6 sm:py-8">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="space-y-2 mb-4">
+          {% for category, msg in messages %}
+            <div class="px-4 py-3 rounded-lg text-sm flex items-start gap-2
+              {% if category == 'error' %}bg-red-50 text-red-800 border border-red-200
+              {% elif category == 'success' %}bg-green-50 text-green-800 border border-green-200
+              {% else %}bg-blue-50 text-blue-800 border border-blue-200{% endif %}">
+              <span>{{ msg }}</span>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="border-t border-gray-200 bg-white">
+    <div class="max-w-5xl mx-auto px-4 py-4 text-xs text-gray-500 text-center">
+      © {{ current_year }} {{ CHURCH_NAME }}．崇拜出席記錄系統
+    </div>
+  </footer>
+
+  {% block scripts %}{% endblock %}
+</body>
+</html>

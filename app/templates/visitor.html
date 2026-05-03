@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}新朋友登記 - {{ CHURCH_NAME }}{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto">
+  <div class="card">
+    <h1 class="text-xl font-bold text-brand-800 mb-2">新朋友登記</h1>
+    <p class="text-sm text-gray-500 mb-5">歡迎您！請填寫以下資料，或選擇「不記名」直接出席。</p>
+
+    <form method="post" action="{{ url_for('main.visitor') }}" class="space-y-4">
+      <input type="hidden" name="service_date" value="{{ target_date.isoformat() }}">
+
+      <div>
+        <label class="label">姓名（中文或英文）</label>
+        <input type="text" name="name" class="input" placeholder="您的姓名">
+      </div>
+
+      <div class="flex flex-wrap gap-4">
+        <label class="flex items-center gap-2 text-sm cursor-pointer">
+          <input type="checkbox" name="is_anonymous" value="1" class="w-4 h-4 text-brand-600">
+          <span>不記名</span>
+        </label>
+        <label class="flex items-center gap-2 text-sm cursor-pointer">
+          <input type="checkbox" name="is_child" value="1" class="w-4 h-4 text-brand-600">
+          <span>兒童</span>
+        </label>
+      </div>
+
+      <div>
+        <label class="label">聯絡方式（電話/Email，選填）</label>
+        <input type="text" name="contact" class="input" placeholder="方便我們將來聯繫您">
+      </div>
+
+      <div>
+        <label class="label">由誰邀請（選填）</label>
+        <input type="text" name="invited_by" class="input" placeholder="邀請您的弟兄姊妹姓名">
+      </div>
+
+      <div>
+        <label class="label">備註（選填）</label>
+        <textarea name="note" rows="2" class="input" placeholder="例：第一次來、希望認識更多..."></textarea>
+      </div>
+
+      <button type="submit" class="btn-primary w-full">完成登記</button>
+      <a href="{{ url_for('main.index') }}" class="btn-ghost w-full">返回</a>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,57 @@
+{% extends "admin/_layout.html" %}
+{% block title %}會員管理{% endblock %}
+
+{% block admin_content %}
+<div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+  <h1 class="text-2xl font-bold text-gray-900">會員管理</h1>
+  <a href="{{ url_for('admin.member_new') }}" class="btn-primary">+ 新增會員</a>
+</div>
+
+<form method="get" class="card !p-4 mb-4 flex flex-wrap gap-3 items-center">
+  <input type="text" name="q" value="{{ q }}" placeholder="搜尋編號 / 姓名 / 英文名" class="input !py-2 flex-1 min-w-[200px]">
+  <label class="flex items-center gap-2 text-sm whitespace-nowrap">
+    <input type="checkbox" name="inactive" value="1" {% if show_inactive %}checked{% endif %} class="w-4 h-4">
+    <span>顯示已停用</span>
+  </label>
+  <button type="submit" class="btn-secondary">搜尋</button>
+</form>
+
+<div class="card !p-0 overflow-hidden">
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead class="bg-gray-50 border-b border-gray-200 text-xs uppercase text-gray-500">
+        <tr>
+          <th class="text-left px-4 py-3">編號</th>
+          <th class="text-left px-4 py-3">姓名</th>
+          <th class="text-left px-4 py-3">英文名</th>
+          <th class="text-left px-4 py-3">備註</th>
+          <th class="text-left px-4 py-3">類別</th>
+          <th class="text-left px-4 py-3">狀態</th>
+          <th class="text-right px-4 py-3">操作</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-100">
+        {% for m in members %}
+        <tr class="{% if not m.is_active %}bg-gray-50 text-gray-400{% endif %} hover:bg-brand-50/30">
+          <td class="px-4 py-2 font-mono">{{ m.member_no }}</td>
+          <td class="px-4 py-2 font-medium">{{ m.name }}</td>
+          <td class="px-4 py-2">{{ m.english_name or '—' }}</td>
+          <td class="px-4 py-2">{{ m.note or '—' }}</td>
+          <td class="px-4 py-2">{% if m.is_child %}<span class="badge-child">兒童</span>{% else %}成人{% endif %}</td>
+          <td class="px-4 py-2">{% if m.is_active %}<span class="badge-on">啟用</span>{% else %}<span class="badge-late">停用</span>{% endif %}</td>
+          <td class="px-4 py-2 text-right whitespace-nowrap">
+            <a href="{{ url_for('admin.member_edit', mid=m.id) }}" class="btn-ghost">編輯</a>
+            <form method="post" action="{{ url_for('admin.member_delete', mid=m.id) }}" class="inline" onsubmit="return confirm('確定停用 {{ m.name }}？');">
+              <button type="submit" class="btn-ghost text-red-600">停用</button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="px-4 py-8 text-center text-gray-400">沒有資料</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+<p class="text-xs text-gray-500 mt-3">共 {{ members|length }} 位會員</p>
+{% endblock %}

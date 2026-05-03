@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}管理員登入{% endblock %}
+
+{% block content %}
+<div class="max-w-sm mx-auto mt-8">
+  <div class="card">
+    <h1 class="text-xl font-bold text-brand-800 mb-1">管理員登入</h1>
+    <p class="text-sm text-gray-500 mb-5">請輸入管理員密碼</p>
+    <form method="post">
+      <label class="label">密碼</label>
+      <input type="password" name="password" class="input mb-4" required autofocus>
+      <button type="submit" class="btn-primary w-full">登入</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

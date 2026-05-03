@@ -1,0 +1,107 @@
+{% extends "admin/_layout.html" %}
+{% block title %}出席記錄{% endblock %}
+
+{% block admin_content %}
+<h1 class="text-2xl font-bold text-gray-900 mb-1">出席記錄</h1>
+<p class="text-sm text-gray-500 mb-4">{{ service_date.strftime('%Y年%m月%d日') }}（{{ ['一','二','三','四','五','六','日'][service_date.weekday()] }}）</p>
+
+<form method="get" class="card !p-4 mb-4 flex flex-wrap gap-3 items-end">
+  <div class="flex-1 min-w-[180px]">
+    <label class="label">選擇日期</label>
+    <input type="date" name="date" value="{{ service_date.isoformat() }}" class="input !py-2">
+  </div>
+  <button type="submit" class="btn-secondary">查看</button>
+</form>
+
+<!-- Manual add -->
+<div class="card mb-4">
+  <h2 class="font-semibold text-gray-800 mb-3">手動補登／點名</h2>
+  <form method="post" action="{{ url_for('admin.attendance_add') }}" class="flex flex-wrap gap-2 items-end">
+    <input type="hidden" name="service_date" value="{{ service_date.isoformat() }}">
+    <div class="flex-1 min-w-[200px]">
+      <label class="label">會員（仍未簽到的 {{ not_checked|length }} 位）</label>
+      <select name="member_id" class="input !py-2" required>
+        <option value="">— 選擇會員 —</option>
+        {% for m in not_checked %}
+        <option value="{{ m.id }}">{{ m.member_no }} {{ m.name }}{% if m.english_name %} ({{ m.english_name }}){% endif %}{% if m.is_child %} [兒童]{% endif %}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="label">狀態</label>
+      <select name="status" class="input !py-2">
+        <option value="on_time">準時</option>
+        <option value="late">遲到</option>
+      </select>
+    </div>
+    <button type="submit" class="btn-primary">新增記錄</button>
+  </form>
+</div>
+
+<!-- Records table -->
+<div class="card !p-0 overflow-hidden">
+  <div class="px-4 py-3 border-b border-gray-200 flex justify-between items-center">
+    <h2 class="font-semibold text-gray-800">已簽到 {{ records|length }} 人</h2>
+  </div>
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead class="bg-gray-50 border-b border-gray-200 text-xs uppercase text-gray-500">
+        <tr>
+          <th class="text-left px-4 py-3">編號</th>
+          <th class="text-left px-4 py-3">姓名</th>
+          <th class="text-left px-4 py-3">類別</th>
+          <th class="text-left px-4 py-3">狀態</th>
+          <th class="text-left px-4 py-3">時間</th>
+          <th class="text-left px-4 py-3">方式</th>
+          <th class="text-right px-4 py-3">操作</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-100">
+        {% for r in records %}
+        <tr class="hover:bg-brand-50/30">
+          <td class="px-4 py-2 font-mono">{{ r.member.member_no }}</td>
+          <td class="px-4 py-2 font-medium">{{ r.member.name }}{% if r.member.english_name %} <span class="text-xs text-gray-400">({{ r.member.english_name }})</span>{% endif %}</td>
+          <td class="px-4 py-2">{% if r.member.is_child %}<span class="badge-child">兒童</span>{% else %}成人{% endif %}</td>
+          <td class="px-4 py-2">
+            <form method="post" action="{{ url_for('admin.attendance_update', rid=r.id) }}" class="inline-flex">
+              <select name="status" onchange="this.form.submit()" class="text-xs border border-gray-300 rounded px-2 py-1">
+                <option value="on_time" {% if r.status == 'on_time' %}selected{% endif %}>準時</option>
+                <option value="late" {% if r.status == 'late' %}selected{% endif %}>遲到</option>
+              </select>
+            </form>
+          </td>
+          <td class="px-4 py-2 text-gray-600">{{ r.check_in_time.strftime('%H:%M') if r.check_in_time else '—' }}</td>
+          <td class="px-4 py-2 text-xs text-gray-500">
+            {% if r.method == 'self' %}網頁{% elif r.method == 'qr' %}QR碼{% elif r.method == 'manual' %}手動{% else %}{{ r.method }}{% endif %}
+          </td>
+          <td class="px-4 py-2 text-right">
+            <form method="post" action="{{ url_for('admin.attendance_delete', rid=r.id) }}" class="inline" onsubmit="return confirm('確定刪除？');">
+              <button type="submit" class="btn-ghost text-red-600">刪除</button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="px-4 py-8 text-center text-gray-400">本日尚無簽到記錄</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if visitors %}
+<div class="card mt-4">
+  <h2 class="font-semibold text-gray-800 mb-3">本日新朋友 ({{ visitors|length }} 位)</h2>
+  <ul class="text-sm divide-y divide-gray-100">
+    {% for v in visitors %}
+    <li class="py-2 flex justify-between items-center">
+      <span>
+        <span class="font-medium">{{ '不記名' if v.is_anonymous else (v.name or '—') }}</span>
+        {% if v.is_child %} <span class="badge-child">兒童</span>{% endif %}
+        {% if v.invited_by %}<span class="text-gray-500 text-xs"> · 邀請人：{{ v.invited_by }}</span>{% endif %}
+      </span>
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+{% endblock %}

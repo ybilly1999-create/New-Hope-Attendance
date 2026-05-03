@@ -1,0 +1,23 @@
+{% extends "admin/_layout.html" %}
+{% block title %}系統設定{% endblock %}
+
+{% block admin_content %}
+<h1 class="text-2xl font-bold text-gray-900 mb-5">系統設定</h1>
+
+<form method="post" class="card max-w-xl space-y-4">
+  <div>
+    <label class="label">崇拜開始時間（準時截止）</label>
+    <input type="time" name="service_start_time" value="{{ service_start_time }}" class="input">
+    <p class="text-xs text-gray-500 mt-1">格式 HH:MM。在這時間之前簽到為「準時」，之後為「遲到」。</p>
+  </div>
+  <button type="submit" class="btn-primary">儲存</button>
+</form>
+
+<div class="card max-w-xl mt-6 bg-blue-50 border-blue-200">
+  <h2 class="font-semibold text-blue-900 mb-2">關於管理員密碼</h2>
+  <p class="text-sm text-blue-800">
+    管理員密碼存放於系統環境變數 <code class="bg-white px-1.5 py-0.5 rounded">ADMIN_PASSWORD</code>。
+    在 Render 後台修改：Dashboard → Service → Environment → 編輯 <code class="bg-white px-1.5 py-0.5 rounded">ADMIN_PASSWORD</code>。
+  </p>
+</div>
+{% endblock %}

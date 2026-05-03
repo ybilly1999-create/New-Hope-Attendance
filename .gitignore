@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.env
+instance/
+*.db
+*.sqlite
+.DS_Store
+data/*.json
+# Keep .xlsx seed files in repo (data/history.xlsx, data/members.xlsx)
+.vscode/
+.idea/

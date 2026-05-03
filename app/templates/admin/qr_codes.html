@@ -1,0 +1,45 @@
+{% extends "admin/_layout.html" %}
+{% block title %}QR Code{% endblock %}
+
+{% block admin_content %}
+<h1 class="text-2xl font-bold text-gray-900 mb-1">會員 QR Code</h1>
+<p class="text-sm text-gray-500 mb-5">每位會員的專屬簽到 QR code。可列印給會員，掃描後直接進入個人簽到頁面。</p>
+
+<div class="card !p-4 mb-4 print:hidden">
+  <input id="qr-search" type="text" placeholder="搜尋姓名/編號..." class="input !py-2 mb-2">
+  <div class="flex justify-between items-center">
+    <p class="text-xs text-gray-500">基底網址：<code class="bg-gray-100 px-2 py-0.5 rounded">{{ base_url }}/qr/編號</code></p>
+    <button onclick="window.print()" class="btn-secondary">🖨 列印</button>
+  </div>
+</div>
+
+<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 print:grid-cols-4">
+  {% for m in members %}
+  <div class="qr-card border border-gray-200 rounded-lg p-3 text-center bg-white print:break-inside-avoid"
+       data-search="{{ m.member_no }} {{ m.name }} {{ m.english_name or '' }}">
+    <img src="{{ url_for('admin.qr_image', member_no=m.member_no) }}" alt="QR" class="w-full aspect-square object-contain">
+    <div class="mt-2 font-bold text-sm">{{ m.name }}</div>
+    <div class="text-xs text-gray-500">編號 {{ m.member_no }}</div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const search = document.getElementById('qr-search');
+  search.addEventListener('input', () => {
+    const q = search.value.trim().toLowerCase();
+    document.querySelectorAll('.qr-card').forEach(c => {
+      c.style.display = !q || c.dataset.search.toLowerCase().includes(q) ? '' : 'none';
+    });
+  });
+</script>
+<style>
+  @media print {
+    body * { visibility: hidden; }
+    .grid, .grid * { visibility: visible; }
+    .grid { position: absolute; top: 0; left: 0; width: 100%; }
+  }
+</style>
+{% endblock %}

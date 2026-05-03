@@ -1,0 +1,68 @@
+{% extends "admin/_layout.html" %}
+{% block title %}總覽 - 管理員{% endblock %}
+
+{% block admin_content %}
+<h1 class="text-2xl font-bold text-gray-900 mb-1">總覽</h1>
+<p class="text-sm text-gray-500 mb-6">主日：{{ target_date.strftime('%Y年%m月%d日') }}</p>
+
+<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
+  <div class="card !p-4">
+    <div class="text-xs text-gray-500">本日總出席</div>
+    <div class="text-3xl font-bold text-brand-800 mt-1">{{ today_total }}</div>
+  </div>
+  <div class="card !p-4">
+    <div class="text-xs text-gray-500">活躍會員</div>
+    <div class="text-3xl font-bold text-gray-700 mt-1">{{ total_members }}</div>
+  </div>
+  <div class="card !p-4">
+    <div class="text-xs text-gray-500">本日新朋友</div>
+    <div class="text-3xl font-bold text-purple-700 mt-1">{{ today_visitors }}</div>
+  </div>
+  <div class="card !p-4">
+    <div class="text-xs text-gray-500">出席率</div>
+    <div class="text-3xl font-bold text-green-700 mt-1">
+      {% if total_members > 0 %}{{ ((today_total / total_members) * 100)|round|int }}%{% else %}—{% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="card mb-6">
+  <h2 class="font-semibold text-gray-800 mb-3">本日詳細</h2>
+  <div class="grid grid-cols-2 gap-3">
+    <div class="bg-green-50 rounded-lg p-3">
+      <div class="text-xs text-green-700">成人準時</div>
+      <div class="text-2xl font-bold text-green-800">{{ adult_on }}</div>
+    </div>
+    <div class="bg-amber-50 rounded-lg p-3">
+      <div class="text-xs text-amber-700">成人遲到</div>
+      <div class="text-2xl font-bold text-amber-800">{{ adult_late }}</div>
+    </div>
+    <div class="bg-purple-50 rounded-lg p-3">
+      <div class="text-xs text-purple-700">兒童準時</div>
+      <div class="text-2xl font-bold text-purple-800">{{ child_on }}</div>
+    </div>
+    <div class="bg-pink-50 rounded-lg p-3">
+      <div class="text-xs text-pink-700">兒童遲到</div>
+      <div class="text-2xl font-bold text-pink-800">{{ child_late }}</div>
+    </div>
+  </div>
+  <div class="mt-4 flex flex-wrap gap-2">
+    <a href="{{ url_for('admin.attendance_list', date=target_date.isoformat()) }}" class="btn-secondary">查看／修改出席記錄</a>
+    <a href="{{ url_for('admin.report') }}" class="btn-secondary">全年報表</a>
+  </div>
+</div>
+
+{% if last_dates %}
+<div class="card">
+  <h2 class="font-semibold text-gray-800 mb-3">最近主日出席</h2>
+  <ul class="text-sm divide-y divide-gray-100">
+    {% for d, c in last_dates %}
+    <li class="py-2 flex justify-between items-center">
+      <a href="{{ url_for('admin.attendance_list', date=d.isoformat()) }}" class="text-brand-700 hover:underline">{{ d.strftime('%Y-%m-%d') }}</a>
+      <span class="text-gray-700">{{ c }} 人</span>
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+{% endblock %}

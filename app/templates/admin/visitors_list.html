@@ -1,0 +1,53 @@
+{% extends "admin/_layout.html" %}
+{% block title %}新朋友 / 訪客{% endblock %}
+
+{% block admin_content %}
+<h1 class="text-2xl font-bold text-gray-900 mb-1">新朋友 / 訪客</h1>
+<p class="text-sm text-gray-500 mb-4">所有訪客出席記錄（共 {{ visitors|length }} 條）</p>
+
+<form method="get" class="card !p-4 mb-4 flex gap-2 items-end">
+  <div>
+    <label class="label">篩選日期</label>
+    <input type="date" name="date" value="{{ d }}" class="input !py-2">
+  </div>
+  <button type="submit" class="btn-secondary">篩選</button>
+  {% if d %}<a href="{{ url_for('admin.visitors_list') }}" class="btn-ghost">清除</a>{% endif %}
+</form>
+
+<div class="card !p-0 overflow-hidden">
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead class="bg-gray-50 border-b border-gray-200 text-xs uppercase text-gray-500">
+        <tr>
+          <th class="text-left px-4 py-3">日期</th>
+          <th class="text-left px-4 py-3">姓名</th>
+          <th class="text-left px-4 py-3">類別</th>
+          <th class="text-left px-4 py-3">聯絡</th>
+          <th class="text-left px-4 py-3">邀請人</th>
+          <th class="text-left px-4 py-3">備註</th>
+          <th class="text-right px-4 py-3">操作</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-100">
+        {% for v in visitors %}
+        <tr class="hover:bg-brand-50/30">
+          <td class="px-4 py-2 font-mono">{{ v.service_date.strftime('%Y-%m-%d') }}</td>
+          <td class="px-4 py-2 font-medium">{{ '不記名' if v.is_anonymous else (v.name or '—') }}</td>
+          <td class="px-4 py-2">{% if v.is_child %}<span class="badge-child">兒童</span>{% else %}成人{% endif %}</td>
+          <td class="px-4 py-2 text-gray-600">{{ v.contact or '—' }}</td>
+          <td class="px-4 py-2">{{ v.invited_by or '—' }}</td>
+          <td class="px-4 py-2 text-gray-600 text-xs">{{ v.note or '—' }}</td>
+          <td class="px-4 py-2 text-right">
+            <form method="post" action="{{ url_for('admin.visitor_delete', vid=v.id) }}" class="inline" onsubmit="return confirm('確定刪除？');">
+              <button type="submit" class="btn-ghost text-red-600">刪除</button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="px-4 py-8 text-center text-gray-400">沒有訪客記錄</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

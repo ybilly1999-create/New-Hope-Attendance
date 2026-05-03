@@ -1,0 +1,112 @@
+{% extends "admin/_layout.html" %}
+{% block title %}全年報表{% endblock %}
+
+{% block admin_content %}
+<div class="flex flex-wrap items-center justify-between gap-3 mb-5">
+  <h1 class="text-2xl font-bold text-gray-900">{{ year }} 全年出席總表</h1>
+  <div class="flex gap-2">
+    <form method="get" class="flex gap-2 items-end">
+      <input type="number" name="year" value="{{ year }}" class="input !py-2 w-24" min="2017" max="2100">
+      <button type="submit" class="btn-secondary">查看</button>
+    </form>
+    <a href="{{ url_for('admin.report_export', year=year) }}" class="btn-primary">下載 Excel</a>
+  </div>
+</div>
+
+<!-- Weekly summary -->
+<div class="card !p-0 overflow-hidden mb-6">
+  <div class="px-4 py-3 border-b border-gray-200">
+    <h2 class="font-semibold text-gray-800">每週總覽</h2>
+  </div>
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead class="bg-gray-50 text-xs uppercase text-gray-500">
+        <tr>
+          <th class="text-left px-3 py-2">日期</th>
+          <th class="text-right px-3 py-2">成人準時</th>
+          <th class="text-right px-3 py-2">成人遲到</th>
+          <th class="text-right px-3 py-2">兒童準時</th>
+          <th class="text-right px-3 py-2">兒童遲到</th>
+          <th class="text-right px-3 py-2">新朋友</th>
+          <th class="text-right px-3 py-2 bg-brand-50">總數</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-100">
+        {% for w in weekly %}
+        <tr class="{% if w.total > 0 %}{% else %}text-gray-300{% endif %}">
+          <td class="px-3 py-2 font-mono">
+            <a href="{{ url_for('admin.attendance_list', date=w.date.isoformat()) }}" class="hover:text-brand-700">{{ w.date.strftime('%m/%d') }}</a>
+          </td>
+          <td class="px-3 py-2 text-right">{{ w.adult_on or '' }}</td>
+          <td class="px-3 py-2 text-right">{{ w.adult_late or '' }}</td>
+          <td class="px-3 py-2 text-right">{{ w.child_on or '' }}</td>
+          <td class="px-3 py-2 text-right">{{ w.child_late or '' }}</td>
+          <td class="px-3 py-2 text-right">{{ w.visitors or '' }}</td>
+          <td class="px-3 py-2 text-right bg-brand-50/50 font-semibold">{{ w.total or '' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Per-member detail -->
+<div class="card !p-0 overflow-hidden">
+  <div class="px-4 py-3 border-b border-gray-200 flex justify-between items-center">
+    <h2 class="font-semibold text-gray-800">會員出席明細</h2>
+    <input id="member-search" type="text" placeholder="搜尋姓名/編號" class="text-sm border border-gray-300 rounded px-3 py-1.5 w-48">
+  </div>
+  <div class="overflow-x-auto max-h-[600px] overflow-y-auto">
+    <table class="w-full text-sm">
+      <thead class="bg-gray-50 sticky top-0 text-xs uppercase text-gray-500">
+        <tr>
+          <th class="text-left px-3 py-2 sticky left-0 bg-gray-50 z-10">編號</th>
+          <th class="text-left px-3 py-2 sticky left-12 bg-gray-50 z-10">姓名</th>
+          <th class="text-right px-2 py-2">準時</th>
+          <th class="text-right px-2 py-2">遲到</th>
+          <th class="text-right px-2 py-2 bg-brand-50">合計</th>
+          {% for s in sundays %}
+            <th class="px-1.5 py-2 text-center text-[10px]">{{ s.strftime('%m/%d') }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-100">
+        {% for row in summary %}
+        <tr class="member-row hover:bg-brand-50/30" data-search="{{ row.member.member_no }} {{ row.member.name }} {{ row.member.english_name or '' }}">
+          <td class="px-3 py-1.5 font-mono sticky left-0 bg-white">{{ row.member.member_no }}</td>
+          <td class="px-3 py-1.5 font-medium sticky left-12 bg-white whitespace-nowrap">{{ row.member.name }}{% if row.member.is_child %} <span class="text-xs text-purple-600">[兒]</span>{% endif %}</td>
+          <td class="px-2 py-1.5 text-right text-green-700">{{ row.on_time or '' }}</td>
+          <td class="px-2 py-1.5 text-right text-amber-700">{{ row.late or '' }}</td>
+          <td class="px-2 py-1.5 text-right bg-brand-50/50 font-semibold">{{ row.total or '' }}</td>
+          {% for s in sundays %}
+            {% set st = att_map.get((row.member.id, s)) %}
+            <td class="px-1 py-1.5 text-center text-xs">
+              {% if st == 'on_time' %}<span class="text-green-600">●</span>
+              {% elif st == 'late' %}<span class="text-amber-600">▲</span>
+              {% else %}<span class="text-gray-200">·</span>{% endif %}
+            </td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+<p class="text-xs text-gray-500 mt-3">
+  <span class="text-green-600">●</span> 準時 ·
+  <span class="text-amber-600">▲</span> 遲到 ·
+  共 {{ summary|length }} 位會員 · {{ sundays|length }} 個主日
+</p>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const search = document.getElementById('member-search');
+  search.addEventListener('input', () => {
+    const q = search.value.trim().toLowerCase();
+    document.querySelectorAll('.member-row').forEach(r => {
+      r.style.display = !q || r.dataset.search.toLowerCase().includes(q) ? '' : 'none';
+    });
+  });
+</script>
+{% endblock %}

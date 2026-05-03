@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}QR 簽到 - {{ member.name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto">
+  <div class="card text-center">
+    <div class="text-sm text-gray-500 mb-1">QR Code 簽到</div>
+    <div class="text-3xl font-bold text-brand-800 mb-1">{{ member.name }}</div>
+    <div class="text-sm text-gray-500 mb-4">編號 {{ member.member_no }}{% if member.english_name %} · {{ member.english_name }}{% endif %}</div>
+
+    <div class="my-4 p-4 bg-gray-50 rounded-lg">
+      <div class="text-sm text-gray-600">主日崇拜</div>
+      <div class="text-xl font-bold text-gray-900">{{ target_date.strftime('%Y年%m月%d日') }}</div>
+    </div>
+
+    {% if existing %}
+      <div class="my-4 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-50 text-blue-800">
+        <span class="font-bold text-base">已簽到 — {% if existing.status == 'on_time' %}準時{% else %}遲到{% endif %}</span>
+      </div>
+      <div class="text-xs text-gray-500">{{ existing.check_in_time.strftime('%H:%M') }}</div>
+      <a href="{{ url_for('main.index') }}" class="btn-secondary w-full mt-5">返回首頁</a>
+    {% else %}
+      <form method="post" action="{{ url_for('main.checkin') }}">
+        <input type="hidden" name="service_date" value="{{ target_date.isoformat() }}">
+        <input type="hidden" name="member_id" value="{{ member.id }}">
+        <input type="hidden" name="method" value="qr">
+        <button type="submit" class="btn-primary w-full text-lg">確認簽到</button>
+      </form>
+      <a href="{{ url_for('main.index') }}" class="btn-ghost w-full mt-3 text-sm">不是我？返回選擇</a>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
