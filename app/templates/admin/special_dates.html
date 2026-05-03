@@ -1,0 +1,63 @@
+{% extends "admin/_layout.html" %}
+{% block title %}特殊日期 - 管理員{% endblock %}
+
+{% block admin_content %}
+<div class="card mb-4">
+  <h2 class="text-xl font-bold text-brand-800 mb-1">特殊崇拜日期</h2>
+  <p class="text-sm text-gray-500">如：會慶、BB立願禮、夏令會、戶外崇拜、網上聯堂崇拜等。系統會在簽到頁顯示對應名稱。</p>
+</div>
+
+<div class="card mb-4">
+  <h3 class="font-semibold mb-3">新增特殊日期</h3>
+  <form method="post" action="{{ url_for('admin.special_dates_new') }}" class="grid grid-cols-1 md:grid-cols-[180px_1fr_1fr_120px] gap-2 items-end">
+    <div>
+      <label class="label">日期</label>
+      <input type="date" name="service_date" class="input" required>
+    </div>
+    <div>
+      <label class="label">名稱</label>
+      <input type="text" name="label" class="input" placeholder="例：會慶 / BB立願禮" required>
+    </div>
+    <div>
+      <label class="label">備註（可留空）</label>
+      <input type="text" name="note" class="input" placeholder="可選">
+    </div>
+    <button type="submit" class="btn-primary">新增</button>
+  </form>
+</div>
+
+<div class="card">
+  <h3 class="font-semibold mb-3">已記錄的特殊日期（{{ items|length }} 條）</h3>
+  {% if items %}
+  <table class="w-full text-sm">
+    <thead class="text-left text-gray-500 border-b">
+      <tr>
+        <th class="py-2 w-32">日期</th>
+        <th class="py-2">名稱</th>
+        <th class="py-2">備註</th>
+        <th class="py-2 w-32 text-right">操作</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-100">
+      {% for it in items %}
+      <tr>
+        <form method="post" action="{{ url_for('admin.special_dates_edit', sid=it.id) }}">
+          <td class="py-2 font-medium">{{ it.service_date.strftime('%Y-%m-%d') }}<div class="text-xs text-gray-400">{{ ['週一','週二','週三','週四','週五','週六','週日'][it.service_date.weekday()] }}</div></td>
+          <td class="py-2"><input type="text" name="label" class="input !py-1" value="{{ it.label }}"></td>
+          <td class="py-2"><input type="text" name="note" class="input !py-1" value="{{ it.note or '' }}"></td>
+          <td class="py-2 text-right">
+            <button type="submit" class="text-brand-700 text-xs px-2 py-1 hover:underline">儲存</button>
+        </form>
+            <form method="post" action="{{ url_for('admin.special_dates_delete', sid=it.id) }}" class="inline" onsubmit="return confirm('確定刪除？')">
+              <button type="submit" class="text-red-600 text-xs px-2 py-1 hover:underline">刪除</button>
+            </form>
+          </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="text-sm text-gray-500">尚未有特殊日期記錄。</p>
+  {% endif %}
+</div>
+{% endblock %}

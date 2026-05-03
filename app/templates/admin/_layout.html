@@ -16,6 +16,8 @@
          class="block px-3 py-2 rounded-md {% if 'report' in (request.endpoint or '') %}bg-brand-100 text-brand-800 font-medium{% else %}hover:bg-gray-100 text-gray-700{% endif %}">📈 全年報表</a>
       <a href="{{ url_for('admin.qr_codes') }}"
          class="block px-3 py-2 rounded-md {% if 'qr' in (request.endpoint or '') %}bg-brand-100 text-brand-800 font-medium{% else %}hover:bg-gray-100 text-gray-700{% endif %}">🔲 QR Code</a>
+      <a href="{{ url_for('admin.special_dates_list') }}"
+         class="block px-3 py-2 rounded-md {% if 'special' in (request.endpoint or '') %}bg-brand-100 text-brand-800 font-medium{% else %}hover:bg-gray-100 text-gray-700{% endif %}">✦ 特殊日期</a>
       <a href="{{ url_for('admin.settings') }}"
          class="block px-3 py-2 rounded-md {% if 'setting' in (request.endpoint or '') %}bg-brand-100 text-brand-800 font-medium{% else %}hover:bg-gray-100 text-gray-700{% endif %}">⚙ 設定</a>
       <hr class="my-2">

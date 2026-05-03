@@ -4,18 +4,57 @@
 {% block content %}
 <div class="max-w-2xl mx-auto">
   <div class="card">
-    <div class="text-center mb-6">
+    <div class="text-center mb-4">
       <div class="text-sm text-gray-500 mb-1">主日崇拜</div>
       <div class="text-2xl font-bold text-brand-800">{{ target_date.strftime('%Y年%m月%d日') }}</div>
       <div class="text-sm text-gray-500 mt-1">
         準時截止時間：{{ SERVICE_START_TIME }}
       </div>
+      {% if special_date %}
+      <div class="mt-3 inline-block px-4 py-2 bg-amber-100 text-amber-900 rounded-full text-sm font-medium">
+        ✦ 特殊崇拜：{{ special_date.label }}
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Date selection: now or back -->
+    <div class="mb-5 border border-gray-200 rounded-lg p-3 bg-gray-50">
+      <div class="flex gap-2 mb-3">
+        <button type="button" id="mode-now" class="flex-1 py-2 rounded-md font-medium text-sm transition {% if not is_back_checkin %}bg-brand-700 text-white{% else %}bg-white text-gray-600 border border-gray-300{% endif %}">
+          ⏰ 現在簽到
+        </button>
+        <button type="button" id="mode-back" class="flex-1 py-2 rounded-md font-medium text-sm transition {% if is_back_checkin %}bg-brand-700 text-white{% else %}bg-white text-gray-600 border border-gray-300{% endif %}">
+          📅 補簽到
+        </button>
+      </div>
+      <div id="back-options" class="{% if not is_back_checkin %}hidden{% endif %}">
+        <label class="label text-xs" for="back-date">選擇崇拜日期</label>
+        <input type="date" id="back-date" class="input mb-2" value="{{ target_date.isoformat() }}">
+        <div class="flex flex-wrap gap-1 mb-2">
+          {% for s in recent_sundays %}
+            <a href="{{ url_for('main.index') }}?date={{ s.isoformat() }}"
+               class="text-xs px-2 py-1 rounded {% if s == target_date %}bg-brand-700 text-white{% else %}bg-white text-gray-700 border border-gray-300 hover:bg-brand-50{% endif %}">
+              {{ s.strftime('%m/%d') }}
+            </a>
+          {% endfor %}
+        </div>
+        <div class="flex gap-2 items-center text-sm">
+          <label class="text-gray-600">狀態：</label>
+          <label class="inline-flex items-center gap-1">
+            <input type="radio" name="back_status" value="on_time" checked> 準時
+          </label>
+          <label class="inline-flex items-center gap-1">
+            <input type="radio" name="back_status" value="late"> 遲到
+          </label>
+        </div>
+      </div>
     </div>
 
     <form method="post" action="{{ url_for('main.checkin') }}" id="checkin-form">
-      <input type="hidden" name="service_date" value="{{ target_date.isoformat() }}">
+      <input type="hidden" name="service_date" id="form_service_date" value="{{ target_date.isoformat() }}">
       <input type="hidden" name="member_id" id="member_id" value="">
-      <input type="hidden" name="method" value="self">
+      <input type="hidden" name="method" id="form_method" value="{% if is_back_checkin %}back{% else %}self{% endif %}">
+      <input type="hidden" name="status" id="form_status" value="on_time">
 
       <label class="label" for="search">搜尋姓名或編號</label>
       <input type="text" id="search" class="input mb-3" placeholder="例如：周淑芳 / 007 / Mary" autocomplete="off">
@@ -99,6 +138,34 @@
       selectedInfo.classList.remove('hidden');
       submitBtn.disabled = false;
     });
+  });
+
+  // Mode toggle: now vs back-checkin
+  const modeNow = document.getElementById('mode-now');
+  const modeBack = document.getElementById('mode-back');
+  const backOptions = document.getElementById('back-options');
+  const backDate = document.getElementById('back-date');
+  const formServiceDate = document.getElementById('form_service_date');
+  const formMethod = document.getElementById('form_method');
+  const formStatus = document.getElementById('form_status');
+  const todayIso = new Date().toISOString().slice(0,10);
+
+  modeNow.addEventListener('click', () => {
+    window.location.href = "{{ url_for('main.index') }}";
+  });
+  modeBack.addEventListener('click', () => {
+    backOptions.classList.remove('hidden');
+    modeBack.classList.add('bg-brand-700','text-white');
+    modeBack.classList.remove('bg-white','text-gray-600','border','border-gray-300');
+    modeNow.classList.remove('bg-brand-700','text-white');
+    modeNow.classList.add('bg-white','text-gray-600','border','border-gray-300');
+  });
+  backDate.addEventListener('change', () => {
+    formServiceDate.value = backDate.value;
+    formMethod.value = backDate.value === todayIso ? 'self' : 'back';
+  });
+  document.querySelectorAll('input[name="back_status"]').forEach(r => {
+    r.addEventListener('change', () => { formStatus.value = r.value; });
   });
 
   // Prevent double-submit

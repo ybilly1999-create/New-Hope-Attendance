@@ -15,7 +15,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app import create_app
-from app.models import db, Member, Attendance, Setting
+from app.models import db, Member, Attendance, Setting, SpecialDate
 
 
 def seed_members_from_dianming(xlsx_path):
@@ -162,6 +162,7 @@ def _import_year_sheet(ws, expected_year=None):
             try:
                 v = int(float(val))
             except (ValueError, TypeError):
+                # Non-numeric (e.g. special-date label characters) — ignore
                 continue
             if v not in (1, 2, 3, 4):
                 continue
@@ -221,6 +222,71 @@ def seed_from_year_summary(xlsx_path, sheet_name=None):
         total_a += new_a
 
     print(f"✓ Imported {total_m} new members, {total_a} attendance records from {xlsx_path}")
+
+
+def seed_special_dates(xlsx_path):
+    """Detect special-date labels written as vertical Chinese characters in date columns.
+
+    The original spreadsheet uses single-character cells stacked vertically inside the
+    member data area to label special services (e.g. 會慶, BB立願禮, 夏令會, 網上聯堂崇拜).
+    We collect those characters per date column and store them as SpecialDate rows.
+    Admins can edit/delete them later in the dashboard.
+    """
+    import openpyxl
+    wb = openpyxl.load_workbook(xlsx_path, data_only=True)
+    targets = [s for s in YEAR_SHEETS if s in wb.sheetnames]
+    if not targets:
+        return
+
+    found = {}  # date -> label string
+    for sn in targets:
+        ws = wb[sn]
+        # Find header row
+        header_row = None
+        for r in range(1, 15):
+            if ws.cell(r, 1).value == "編號":
+                header_row = r
+                break
+        if not header_row:
+            continue
+
+        # For each datetime column header, scan member rows for non-numeric short text
+        for c in range(1, ws.max_column + 1):
+            v = ws.cell(1, c).value
+            if not isinstance(v, datetime):
+                continue
+            d = v.date()
+            chars = []
+            for r in range(header_row + 1, ws.max_row + 1):
+                cv = ws.cell(r, c).value
+                if isinstance(cv, str):
+                    s = cv.strip()
+                    if not s:
+                        continue
+                    # Skip pure numbers and known status text
+                    if s.replace(".", "").isdigit():
+                        continue
+                    if s in ("-",):
+                        continue
+                    if len(s) <= 6:
+                        chars.append(s)
+            if chars:
+                label = "".join(chars).strip()
+                # Deduplicate immediate repeats (e.g. "聯堂聯堂崇拜" -> just keep)
+                if d in found:
+                    found[d] = found[d] + " " + label
+                else:
+                    found[d] = label
+
+    added = 0
+    for d, label in sorted(found.items()):
+        existing = SpecialDate.query.filter_by(service_date=d).first()
+        if existing:
+            continue
+        db.session.add(SpecialDate(service_date=d, label=label))
+        added += 1
+    db.session.commit()
+    print(f"✓ Imported {added} special-date labels (e.g. 會慶, 網上聯堂崇拜, 夏令會)")
 
 
 def merge_dianming_metadata(xlsx_path):
@@ -283,6 +349,7 @@ def main():
 
         if args.seed_history and Path(args.seed_history).exists():
             seed_from_year_summary(args.seed_history)
+            seed_special_dates(args.seed_history)
 
         if args.seed_members and Path(args.seed_members).exists():
             seed_members_from_dianming(args.seed_members)

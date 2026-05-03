@@ -11,7 +11,7 @@ from flask import (
 )
 from sqlalchemy import func
 
-from .models import db, Member, Attendance, Visitor, Setting
+from .models import db, Member, Attendance, Visitor, Setting, SpecialDate
 from .utils import determine_status, hk_now, status_label, upcoming_sunday
 
 admin_bp = Blueprint("admin", __name__)
@@ -475,6 +475,63 @@ def settings():
         "admin/settings.html",
         service_start_time=Setting.get("service_start_time", "10:00"),
     )
+
+
+# ==================== Special Dates ====================
+@admin_bp.route("/special-dates")
+@login_required
+def special_dates_list():
+    items = SpecialDate.query.order_by(SpecialDate.service_date.desc()).all()
+    return render_template("admin/special_dates.html", items=items)
+
+
+@admin_bp.route("/special-dates/new", methods=["POST"])
+@login_required
+def special_dates_new():
+    d_str = request.form.get("service_date", "").strip()
+    label = request.form.get("label", "").strip()
+    note = request.form.get("note", "").strip()
+    if not d_str or not label:
+        flash("請填寫日期與名稱", "error")
+        return redirect(url_for("admin.special_dates_list"))
+    try:
+        sd = datetime.strptime(d_str, "%Y-%m-%d").date()
+    except ValueError:
+        flash("日期格式錯誤", "error")
+        return redirect(url_for("admin.special_dates_list"))
+    existing = SpecialDate.query.filter_by(service_date=sd).first()
+    if existing:
+        existing.label = label
+        existing.note = note or None
+    else:
+        db.session.add(SpecialDate(service_date=sd, label=label, note=note or None))
+    db.session.commit()
+    flash("已儲存特殊日期", "success")
+    return redirect(url_for("admin.special_dates_list"))
+
+
+@admin_bp.route("/special-dates/<int:sid>/edit", methods=["POST"])
+@login_required
+def special_dates_edit(sid):
+    item = db.session.get(SpecialDate, sid)
+    if not item:
+        abort(404)
+    item.label = request.form.get("label", "").strip() or item.label
+    item.note = request.form.get("note", "").strip() or None
+    db.session.commit()
+    flash("已更新", "success")
+    return redirect(url_for("admin.special_dates_list"))
+
+
+@admin_bp.route("/special-dates/<int:sid>/delete", methods=["POST"])
+@login_required
+def special_dates_delete(sid):
+    item = db.session.get(SpecialDate, sid)
+    if item:
+        db.session.delete(item)
+        db.session.commit()
+        flash("已刪除", "success")
+    return redirect(url_for("admin.special_dates_list"))
 
 
 # ==================== QR codes ====================

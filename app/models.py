@@ -94,6 +94,25 @@ class Visitor(db.Model):
         }
 
 
+class SpecialDate(db.Model):
+    """Special service dates (e.g. 會慶、BB立願禮、夏令會)."""
+    __tablename__ = "special_dates"
+
+    id = db.Column(db.Integer, primary_key=True)
+    service_date = db.Column(db.Date, unique=True, nullable=False, index=True)
+    label = db.Column(db.String(200), nullable=False)
+    note = db.Column(db.String(500), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "service_date": self.service_date.isoformat(),
+            "label": self.label,
+            "note": self.note,
+        }
+
+
 class Setting(db.Model):
     """Generic key-value settings."""
     __tablename__ = "settings"

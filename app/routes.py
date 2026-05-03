@@ -2,7 +2,7 @@
 from datetime import date, datetime
 from flask import Blueprint, render_template, request, jsonify, abort, redirect, url_for, flash
 
-from .models import db, Member, Attendance, Visitor, Setting
+from .models import db, Member, Attendance, Visitor, Setting, SpecialDate
 from .utils import determine_status, hk_now, upcoming_sunday, status_label
 
 bp = Blueprint("main", __name__)
@@ -12,21 +12,41 @@ bp = Blueprint("main", __name__)
 def index():
     """Member-facing home: pick service date and check in."""
     today = date.today()
-    # If today is Sunday, use today; otherwise next Sunday
-    target_date = today if today.weekday() == 6 else upcoming_sunday(today)
+    # Allow query param ?date=YYYY-MM-DD to back-date check-in
+    qd = request.args.get("date")
+    if qd:
+        try:
+            target_date = datetime.strptime(qd, "%Y-%m-%d").date()
+        except ValueError:
+            target_date = today if today.weekday() == 6 else upcoming_sunday(today)
+    else:
+        target_date = today if today.weekday() == 6 else upcoming_sunday(today)
+
     members = Member.query.filter_by(is_active=True).order_by(Member.member_no).all()
-    # Already checked-in today?
     todays = (
         Attendance.query.filter_by(service_date=target_date)
         .order_by(Attendance.check_in_time.desc())
         .limit(20)
         .all()
     )
+    special = SpecialDate.query.filter_by(service_date=target_date).first()
+    # Recent Sundays as quick options for back-checkin
+    recent_sundays = []
+    for i in range(8):
+        d = today
+        # Walk backwards to find Sundays
+        while d.weekday() != 6:
+            d = d.fromordinal(d.toordinal() - 1)
+        d = d.fromordinal(d.toordinal() - 7 * i)
+        recent_sundays.append(d)
     return render_template(
         "index.html",
         members=members,
         target_date=target_date,
         recent=todays,
+        special_date=special,
+        recent_sundays=recent_sundays,
+        is_back_checkin=(target_date != today and target_date != (today if today.weekday() == 6 else upcoming_sunday(today))),
     )
 
 
@@ -60,7 +80,15 @@ def checkin():
         return redirect(url_for("main.success", member_id=member.id, date=service_d.isoformat()))
 
     now = hk_now()
-    status = determine_status(now, service_d)
+    # If service_date != today, mark as 'back' (allow admin-supplied status)
+    today = date.today()
+    if service_d != today:
+        # Back check-in: allow user to choose status (default on_time)
+        chosen = (request.form.get("status") or "on_time").strip()
+        status = chosen if chosen in ("on_time", "late") else "on_time"
+        method = "back"
+    else:
+        status = determine_status(now, service_d)
     record = Attendance(
         member_id=member.id,
         service_date=service_d,
